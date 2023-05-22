@@ -5,31 +5,46 @@ frameworkVersion: "3"
 provider:
   name: aws
   runtime: nodejs18.x
-  region: eu-west-2
+  region: eu-central-1
   iam:
     role:
       statements:
         - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:Scan
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-          Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/Files"
+          Action: "dynamodb:*"
+          Resource: !Sub "arn:aws:dynamodb:::${FilesTable}/*"
+        - Effect: Allow
+          Action: "s3:*"
+          Resource: !Sub "arn:aws:s3:::${UserUploadBucket}/*"
+
+# package:
+#   # Create separate zip for each Lambda function
+#   individually: true
+#   patterns:
+#     # Exclude everything (each Lambda will specify which directory should be included)
+#     # To exclude use '!' prefix
+#     - '!**/**'
+#     - 'utility/**'
 
 functions:
   create:
-    handler: todos/create.create
+    handler: build/create.create
     events:
       - http:
           path: todos
           method: post
           cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - email
 
   list:
-    handler: todos/list.list
+    handler: build/list.list
     events:
       - http:
           path: todos
@@ -37,18 +52,18 @@ functions:
           cors: true
         
   get:
-    handler: todos/get.get
+    handler: build/get.get
     events:
       - http:
-          path: todos/{id}
+          path: build/{id}
           method: get
           cors: true
         
   update:
-    handler: todos/update.update
+    handler: build/update.update
     events:
       - http:
-          path: todos/{id}
+          path: build/{id}
           method: put
           cors: true        
 
@@ -71,4 +86,42 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    UserUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: tim18-cloud-computing-user-upload
+    UserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: MyUserPool
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: true
+            RequireUppercase: true
+        Schema:
+          - AttributeDataType: String
+            DeveloperOnlyAttribute: false
+            Mutable: true
+            Name: email
+            Required: true
+            StringAttributeConstraints:
+              MinLength: "3"
+              MaxLength: "255"
+          - AttributeDataType: String
+            DeveloperOnlyAttribute: false
+            Mutable: true
+            Name: phone_number
+            Required: true
+            StringAttributeConstraints:
+              MinLength: "3"
+              MaxLength: "255"
+        AutoVerifiedAttributes:
+          - email
+        UsernameAttributes:
+          - email
+        EmailVerificationMessage: "Your verification code is {####}."
+        EmailVerificationSubject: "Verify your email address"
 
