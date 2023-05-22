@@ -16,18 +16,21 @@ provider:
           Action: "s3:*"
           Resource: !Sub "arn:aws:s3:::${UserUploadBucket}/*"
 
-# package:
-#   # Create separate zip for each Lambda function
-#   individually: true
-#   patterns:
-#     # Exclude everything (each Lambda will specify which directory should be included)
-#     # To exclude use '!' prefix
-#     - '!**/**'
-#     - 'utility/**'
+package:
+  # Create separate zip for each Lambda function
+  individually: true
+  patterns:
+    # Exclude everything (each Lambda will specify which directory should be included)
+    # To exclude use '!' prefix
+    - '!**/**'
+    - 'build/common/**'
+    - 'node_modules/**'
 
 functions:
   create:
-    handler: build/create.create
+    handler: build/create.lambdaHandler
+    package:
+      include: 'build/create.js'
     events:
       - http:
           path: todos
@@ -44,7 +47,9 @@ functions:
                 - email
 
   list:
-    handler: build/list.list
+    handler: build/list.lambdaHandler
+    package:
+      include: 'build/list.js'
     events:
       - http:
           path: todos
@@ -52,7 +57,9 @@ functions:
           cors: true
         
   get:
-    handler: build/get.get
+    handler: build/get.lambdaHandler
+    package:
+      include: 'build/get.js'
     events:
       - http:
           path: build/{id}
@@ -60,7 +67,9 @@ functions:
           cors: true
         
   update:
-    handler: build/update.update
+    handler: build/update.lambdaHandler
+    package:
+      include: 'build/update.js'
     events:
       - http:
           path: build/{id}
