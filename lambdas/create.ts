@@ -7,7 +7,8 @@ export const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGat
   return {
     statusCode: 200,
     body: JSON.stringify({
-      status: uuid.v1()
+      uuid: uuid.v1(),
+      user: event.requestContext.accountId
     }),
   };
 };
