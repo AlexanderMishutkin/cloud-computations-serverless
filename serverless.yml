@@ -36,6 +36,26 @@ package:
     - 'node_modules/**'
 
 functions:
+  post_file:
+    handler: build/file.postFile
+    package:
+      include: 'build/file.js'
+    events:
+      - http:
+          path: file
+          method: post
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+
   create:
     handler: build/create.lambdaHandler
     package:

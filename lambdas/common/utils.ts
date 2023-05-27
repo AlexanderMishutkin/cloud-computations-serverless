@@ -1,4 +1,4 @@
-function generateSafeS3Name(originalName: string) {
+export function generateSafeS3Name(originalName: string) {
     originalName = originalName.split('.')[0];
     // Remove special characters and replace spaces with hyphens
     const sanitized = originalName
