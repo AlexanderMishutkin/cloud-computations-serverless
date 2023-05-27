@@ -6,12 +6,21 @@ provider:
   name: aws
   runtime: nodejs18.x
   region: eu-central-1
+  cors: 
+    origin: '*'
+    headers: '*'
   iam:
     role:
       statements:
         - Effect: Allow
           Action: "dynamodb:*"
           Resource: !Sub "arn:aws:dynamodb:::${FilesTable}/*"
+        - Effect: Allow
+          Action: "dynamodb:*"
+          Resource: !Sub "arn:aws:dynamodb:::${AlbumsTable}/*"
+        - Effect: Allow
+          Action: "dynamodb:*"
+          Resource: !Sub "arn:aws:dynamodb:::${FamilyInvitesTable}/*"
         - Effect: Allow
           Action: "s3:*"
           Resource: !Sub "arn:aws:s3:::${UserUploadBucket}/*"
@@ -95,10 +104,48 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+          
+    AlbumsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Albums
+        AttributeDefinitions:
+          - AttributeName: user_sub
+            AttributeType: S
+          - AttributeName: album_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: user_sub
+            KeyType: HASH
+          - AttributeName: album_id
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    
+    FamilyInvitesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: FamilyInvites
+        AttributeDefinitions:
+          - AttributeName: invited_email
+            AttributeType: S
+          - AttributeName: inviter_email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: invited_email
+            KeyType: HASH
+          - AttributeName: inviter_email
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
     UserUploadBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: tim18-cloud-computing-user-upload
+
     UserPool:
       Type: AWS::Cognito::UserPool
       Properties:
@@ -127,6 +174,14 @@ resources:
             StringAttributeConstraints:
               MinLength: "3"
               MaxLength: "255"
+          - AttributeDataType: String
+            DeveloperOnlyAttribute: false
+            Mutable: false
+            Name: email_of_inviter
+            Required: false
+            StringAttributeConstraints:
+              MinLength: "3"
+              MaxLength: "255"
         AutoVerifiedAttributes:
           - email
         UsernameAttributes:
@@ -134,3 +189,10 @@ resources:
         EmailVerificationMessage: "Your verification code is {####}."
         EmailVerificationSubject: "Verify your email address"
 
+    UserPoolClient:
+      Type: 'AWS::Cognito::UserPoolClient'
+      Properties:
+        ClientName: MyUserPoolClient
+        GenerateSecret: False
+        UserPoolId:
+          Ref: UserPool
