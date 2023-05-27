@@ -6,9 +6,6 @@ provider:
   name: aws
   runtime: nodejs18.x
   region: eu-central-1
-  cors: 
-    origin: '*'
-    headers: '*'
   iam:
     role:
       statements:
@@ -65,13 +62,12 @@ functions:
       include: 'build/file.js'
     events:
       - http:
-          path: file/{user_sub}/{file_id}
+          path: file/{file_id}
           method: get
           cors: true
           request:
             parameters:
               paths:
-                user_sub: true
                 file_id: true
           authorizer:
               name: PrivateAuthorizer
@@ -83,15 +79,15 @@ functions:
               claims:
                 - sub
                 - email
-
-  create:
-    handler: build/create.lambdaHandler
+                
+  get_files:
+    handler: build/file.getFiles
     package:
-      include: 'build/create.js'
+      include: 'build/file.js'
     events:
       - http:
-          path: todos
-          method: post
+          path: file
+          method: get
           cors: true
           authorizer:
               name: PrivateAuthorizer
@@ -101,37 +97,48 @@ functions:
                   - UserPool
                   - Arn
               claims:
+                - sub
                 - email
-
-  list:
-    handler: build/list.lambdaHandler
+                
+  edit_file:
+    handler: build/file.editFile
     package:
-      include: 'build/list.js'
+      include: 'build/file.js'
     events:
       - http:
-          path: todos
-          method: get
-          cors: true
-        
-  get:
-    handler: build/get.lambdaHandler
-    package:
-      include: 'build/get.js'
-    events:
-      - http:
-          path: build/{id}
-          method: get
-          cors: true
-        
-  update:
-    handler: build/update.lambdaHandler
-    package:
-      include: 'build/update.js'
-    events:
-      - http:
-          path: build/{id}
+          path: file
           method: put
-          cors: true        
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+           
+  delete_file:
+    handler: build/file.deleteFile
+    package:
+      include: 'build/file.js'
+    events:
+      - http:
+          path: file
+          method: delete
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email   
 
 resources:
   Resources:
@@ -140,8 +147,6 @@ resources:
       Properties:
         TableName: Files
         AttributeDefinitions:
-          - AttributeName: user_sub
-            AttributeType: S
           - AttributeName: file_id
             AttributeType: S
         KeySchema:
