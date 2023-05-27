@@ -14,13 +14,16 @@ provider:
       statements:
         - Effect: Allow
           Action: "dynamodb:*"
-          Resource: !Sub "arn:aws:dynamodb:::${FilesTable}/*"
+          Resource:
+            - "Fn::GetAtt": [ FilesTable, Arn ]
         - Effect: Allow
           Action: "dynamodb:*"
-          Resource: !Sub "arn:aws:dynamodb:::${AlbumsTable}/*"
+          Resource:
+            - "Fn::GetAtt": [ AlbumsTable, Arn ]
         - Effect: Allow
           Action: "dynamodb:*"
-          Resource: !Sub "arn:aws:dynamodb:::${FamilyInvitesTable}/*"
+          Resource:
+            - "Fn::GetAtt": [ FamilyInvitesTable, Arn ]
         - Effect: Allow
           Action: "s3:*"
           Resource: !Sub "arn:aws:s3:::${UserUploadBucket}/*"
@@ -45,6 +48,31 @@ functions:
           path: file
           method: post
           cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+
+  get_file:
+    handler: build/file.getFile
+    package:
+      include: 'build/file.js'
+    events:
+      - http:
+          path: file/{user_sub}/{file_id}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                user_sub: true
+                file_id: true
           authorizer:
               name: PrivateAuthorizer
               type: COGNITO_USER_POOLS
@@ -117,10 +145,8 @@ resources:
           - AttributeName: file_id
             AttributeType: S
         KeySchema:
-          - AttributeName: user_sub
-            KeyType: HASH
           - AttributeName: file_id
-            KeyType: RANGE
+            KeyType: HASH
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
@@ -130,15 +156,11 @@ resources:
       Properties:
         TableName: Albums
         AttributeDefinitions:
-          - AttributeName: user_sub
-            AttributeType: S
           - AttributeName: album_id
             AttributeType: S
         KeySchema:
-          - AttributeName: user_sub
-            KeyType: HASH
           - AttributeName: album_id
-            KeyType: RANGE
+            KeyType: HASH
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
