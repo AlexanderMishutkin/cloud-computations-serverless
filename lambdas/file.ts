@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDB, S3 } from "aws-sdk";
 import * as uuid from 'uuid';
 import { Album, UniversalFile } from "./common/entities";
-import { generateSafeS3Name } from "./common/utils";
+import { changeAlbum, generateSafeS3Name, getAlbum, getDefaultAlbum } from "./common/utils";
 
 const BUCKET = 'tim18-cloud-computing-user-upload';
 const s3 = new S3();
@@ -28,11 +28,19 @@ export const postFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
     file.file_id = uuid.v1();
 
     // Put file to S3
-    const filename = `files/${generateSafeS3Name(email)}/${generateSafeS3Name(file.name)}_${file.file_id}.${file.type}`;
+    const file_format = file.name.split('.').pop();
+    const filename = `files/${generateSafeS3Name(email)}/${generateSafeS3Name(file.name)}_${file.file_id}.${file_format}`;
     await s3.putObject({ Bucket: BUCKET, Key: filename, Body: Buffer.from(file.data, 'base64') }).promise();
     file.s3_url = `https://${BUCKET}.s3.amazonaws.com/${filename}`;
     file.user_sub = sub;
+    file.size = Math.ceil(file.data.length * 6 / 8);
     file.data = undefined;
+    if (!file.album_id) file.album_id = (await getDefaultAlbum(sub, dynamoDB)).album_id;
+
+    let album = await getAlbum(file.album_id, email, sub, dynamoDB);
+    if (album.error) return {headers: headers, ...album.error}
+    // Security
+    if (!album.album || album.album.user_sub != sub) return { headers: headers, statusCode: 403, body: "You can add file only to your album!" };
 
     // Put meta data to dynamoDB
     file.creation_date = new Date().toLocaleDateString();
@@ -43,6 +51,10 @@ export const postFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
             ...file
         }
     }).promise();
+    // And link file with album
+    album.album.files_ids = album.album.files_ids ?? [];
+    album.album.files_ids.push(file.file_id);
+    album = await changeAlbum(album.album, sub, dynamoDB)
 
     return {
         headers: headers, statusCode: 200,
@@ -82,8 +94,8 @@ export const getFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Security
     if (
         file.user_sub != sub &&
-        !(email in file.shared_with_emails) &&
-        !(album && email in album.shared_with_emails)
+        !(file.shared_with_emails.find(email)) &&
+        !(album && album.shared_with_emails.find(email))
     ) return { headers: headers, statusCode: 403, body: "File do not exists or you are not allowed to see it!" };
 
     // Get data from S3
@@ -184,18 +196,34 @@ export const editFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
     let file = responce.Item as UniversalFile;
     if (!file) return { statusCode: 404, body: "File not found!" };
 
+    // Get new album from DynamoDB
+    if (new_file.album_id && new_file.album_id != file.album_id) {
+        responce = await dynamoDB.get({
+            TableName: "Albums",
+            Key: {
+                album_id: new_file.album_id
+            }
+        }).promise();
+        let new_album = responce.Item as Album;
+        if (!new_album) return { statusCode: 404, body: "New album not found!" };
+        // Security
+        if (new_album.user_sub != sub) return { headers: headers, statusCode: 403, body: "New album must be your's!" };
+    }
+
     // Security
     if (file.user_sub != sub) return { headers: headers, statusCode: 403, body: "File must be your's!" };
     if (new_file.user_sub && new_file.user_sub != sub) return { headers: headers, statusCode: 403, body: "Can not reassign file!" };
 
     // Optionally update data
     if (new_file.data && file.s3_url) {
+        new_file.size = Math.ceil(new_file.data.length * 6 / 8);
         await s3.putObject({ Bucket: BUCKET, Key: file.s3_url.replace(`https://${BUCKET}.s3.amazonaws.com/`, ''), Body: Buffer.from(new_file.data, 'base64') }).promise();
         new_file.data = undefined;
         new_file.s3_url = file.s3_url;
     } else {
         if (new_file.data) {
-            const filename = `files/${generateSafeS3Name(email)}/${generateSafeS3Name(file.name)}_${file.file_id}.${file.type}`;
+            const file_format = file.name.split('.').pop();
+            const filename = `files/${generateSafeS3Name(email)}/${generateSafeS3Name(file.name)}_${file.file_id}.${file_format}`;
             await s3.putObject({ Bucket: BUCKET, Key: filename, Body: Buffer.from(new_file.data, 'base64') }).promise();
             new_file.s3_url = `https://${BUCKET}.s3.amazonaws.com/${filename}`;
             new_file.data = undefined;
@@ -247,6 +275,8 @@ export const deleteFile = async (event: APIGatewayProxyEvent): Promise<APIGatewa
     }).promise();
     let file = responce.Item as UniversalFile;
     if (!file) return { statusCode: 404, body: "File not found!" };
+    let album = await getAlbum(file.album_id, email, sub, dynamoDB);
+    if (album.error || !album.album) return {headers: headers, ...album.error}
 
     // Security
     if (file.user_sub != sub) return { headers: headers, statusCode: 403, body: "File must be your's!" };
@@ -261,6 +291,10 @@ export const deleteFile = async (event: APIGatewayProxyEvent): Promise<APIGatewa
             file_id: new_file.file_id
         }
     }).promise()
+
+    album.album.files_ids = album.album.files_ids.filter(id=>id!=file.file_id);
+    album = await changeAlbum(album.album, sub, dynamoDB);
+    if (album.error) return {headers: headers, ...album.error}
 
     return {
         statusCode: 200,

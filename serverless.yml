@@ -140,6 +140,110 @@ functions:
                 - sub
                 - email   
 
+  post_album:
+    handler: build/album.postAlbum
+    package:
+      include: 'build/album.js'
+    events:
+      - http:
+          path: album
+          method: post
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+
+  get_album:
+    handler: build/album.getOneAlbum
+    package:
+      include: 'build/album.js'
+    events:
+      - http:
+          path: album/{album_id}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                album_id: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+                
+  get_albums:
+    handler: build/album.getAllAlbums
+    package:
+      include: 'build/album.js'
+    events:
+      - http:
+          path: album
+          method: get
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+                
+  edit_album:
+    handler: build/album.editAlbum
+    package:
+      include: 'build/album.js'
+    events:
+      - http:
+          path: album
+          method: put
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+           
+  delete_album:
+    handler: build/album.deleteAlbum
+    package:
+      include: 'build/album.js'
+    events:
+      - http:
+          path: album
+          method: delete
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email 
+
 resources:
   Resources:
     FilesTable:

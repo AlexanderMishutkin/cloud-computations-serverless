@@ -19,7 +19,7 @@ export interface Album {
   creation_date: string;
   last_update: string;
   shared_with_emails: string[];
-  files_ids: {file_id: string}[]
+  files_ids: string[]
 }
 
 export interface FamilyInvite {
