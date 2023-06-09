@@ -35,7 +35,6 @@ export const postFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
     file.user_sub = sub;
     file.size = Math.ceil(file.data.length * 6 / 8);
     file.data = undefined;
-    if (!file.album_id) file.album_id = (await getDefaultAlbum(sub, dynamoDB)).album_id;
 
     let album = await getAlbum(file.album_id, email, sub, dynamoDB);
     if (album.error) return {headers: headers, ...album.error}
@@ -43,6 +42,7 @@ export const postFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
     if (!album.album || album.album.user_sub != sub) return { headers: headers, statusCode: 403, body: "You can add file only to your album!" };
 
     // Put meta data to dynamoDB
+    file.album_id = album.album.album_id;
     file.creation_date = new Date().toLocaleDateString();
     file.last_update = file.creation_date;
     await dynamoDB.put({
@@ -247,6 +247,29 @@ export const editFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
             ...to_save
         }
     }).promise();
+
+    if (to_save.album_id != file.album_id) {
+        let oldAlbum = await getAlbum(file.album_id, email, sub, dynamoDB);
+        if (oldAlbum.error || !oldAlbum.album) return {headers: headers, ...oldAlbum.error};
+        let newAlbum = await getAlbum(to_save.album_id, email, sub, dynamoDB);
+        if (newAlbum.error || !newAlbum.album) return {headers: headers, ...newAlbum.error};
+
+        oldAlbum.album.files_ids = oldAlbum.album.files_ids.filter(id=>id!=to_save.file_id);
+        newAlbum.album.files_ids.push(to_save.file_id);
+        
+        await dynamoDB.put({
+            TableName: "Albums",
+            Item: {
+            ...oldAlbum.album
+            }
+        }).promise();
+        await dynamoDB.put({
+            TableName: "Albums",
+            Item: {
+            ...newAlbum.album
+            }
+        }).promise();
+    }
 
     return {
         statusCode: 200,

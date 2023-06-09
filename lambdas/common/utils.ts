@@ -43,7 +43,7 @@ export async function getDefaultAlbum(userSub: string, dynamoDB: DynamoDB.Docume
 }
 
 export async function getAlbum(albumId: string, email: string, userSub: string, dynamoDB: DynamoDB.DocumentClient): Promise<{ album: Album | undefined, error: any }> {
-  if (albumId == userSub) return { album: await getDefaultAlbum(albumId, dynamoDB), error: undefined };
+  if (!albumId || albumId == userSub) return { album: await getDefaultAlbum(userSub, dynamoDB), error: undefined };
   let responce = await dynamoDB.get({
     TableName: "Albums",
     Key: {
@@ -71,7 +71,7 @@ export async function changeAlbum(newAlbum: Album, userSub: string, dynamoDB: Dy
 
   // Security
   if (album.user_sub != userSub) return { album: undefined, error: { statusCode: 403, body: "Album must be your's!" } };
-  for (let fileId of album.files_ids) {
+  for (let fileId of (newAlbum.files_ids ?? [])) {
     let responce = await dynamoDB.get({
       TableName: "Files",
       Key: {

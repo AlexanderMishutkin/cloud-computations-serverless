@@ -29,6 +29,7 @@ export const postAlbum = async (event: APIGatewayProxyEvent): Promise<APIGateway
     album.album_id = uuid.v1();
     album.user_sub = sub;
     album.files_ids = album.files_ids ?? [];
+    album.shared_with_emails = album.shared_with_emails ?? [];
     album.creation_date = new Date().toLocaleDateString();
     album.last_update = album.creation_date;
 
@@ -60,12 +61,12 @@ export const getOneAlbum = async (event: APIGatewayProxyEvent): Promise<APIGatew
     
     // Get USER'S meta from DynamoDB
     let files: UniversalFile[] = []; 
-    for (let file_id of result.album.files_ids) {
+    for (let file_id of (result.album.files_ids ?? [])) {
         let responce = await dynamoDB.get({
-        TableName: "Files",
-        Key: {
-            file_id: file_id
-        }
+            TableName: "Files",
+            Key: {
+                file_id: file_id
+            }
         }).promise();
         files.push(responce.Item as UniversalFile);
     }
@@ -145,7 +146,8 @@ export const deleteAlbum = async (event: APIGatewayProxyEvent): Promise<APIGatew
     };
     const sub = event.requestContext.authorizer.claims['sub'];
     const email = event.requestContext.authorizer.claims['email'];
-    const { album_id } = event.pathParameters as { album_id: string };
+    if (!event.body) return { headers: headers, statusCode: 400, body: "No request body!" };
+    let album_id = (JSON.parse(event.body) as Album).album_id;
 
     let result = await getAlbum(album_id, email, sub, dynamoDB);
     if (result.error || !result.album) return {headers: headers, ...result.error};
@@ -157,6 +159,27 @@ export const deleteAlbum = async (event: APIGatewayProxyEvent): Promise<APIGatew
         album_id: result.album.album_id
         }
     }).promise()
+    
+    for (let file_id of (result.album.files_ids ?? [])) {
+        let responce = await dynamoDB.get({
+            TableName: "Files",
+            Key: {
+                file_id: file_id
+            }
+        }).promise();
+        let file = responce.Item as UniversalFile;
+
+        if (file.s3_url) {
+            await s3.deleteObject({ Bucket: BUCKET, Key: file.s3_url.replace(`https://${BUCKET}.s3.amazonaws.com/`, '')}).promise();
+        }
+    
+        if (file) await dynamoDB.delete({
+            TableName : 'Files',
+            Key: {
+                file_id: file.file_id
+            }
+        }).promise()
+    }
 
     return {
         statusCode: 200,
