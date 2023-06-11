@@ -86,7 +86,6 @@ export const getAllAlbums = async (event: APIGatewayProxyEvent): Promise<APIGate
     const sub = event.requestContext.authorizer.claims['sub'];
     const email = event.requestContext.authorizer.claims['email'];
 
-    // Get USER'S meta from DynamoDB
     const params = {
         TableName: 'Albums',
         FilterExpression: 'user_sub = :sub',

@@ -25,6 +25,6 @@ export interface Album {
 export interface FamilyInvite {
   invited_email: string;
   inviter_email: string;
-  declined: boolean;
-  accepted: boolean;
+  invited_name: string;
+  invite_status: string;
 }

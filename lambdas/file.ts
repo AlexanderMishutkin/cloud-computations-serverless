@@ -205,7 +205,7 @@ export const editFile = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
             }
         }).promise();
         let new_album = responce.Item as Album;
-        if (!new_album) return { statusCode: 404, body: "New album not found!" };
+        if (!new_album) return { headers: headers, statusCode: 404, body: "New album not found!" };
         // Security
         if (new_album.user_sub != sub) return { headers: headers, statusCode: 403, body: "New album must be your's!" };
     }

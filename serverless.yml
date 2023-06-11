@@ -22,6 +22,10 @@ provider:
           Resource:
             - "Fn::GetAtt": [ FamilyInvitesTable, Arn ]
         - Effect: Allow
+          Action: "cognito-idp:*"
+          Resource:
+            - "Fn::GetAtt": [ UserPool, Arn ]
+        - Effect: Allow
           Action: "s3:*"
           Resource: !Sub "arn:aws:s3:::${UserUploadBucket}/*"
 
@@ -244,10 +248,81 @@ functions:
                 - sub
                 - email 
 
+  post_sign_up:
+    handler: build/invites.postSignUp
+    package:
+      include: 'build/invites.js'
+    events:
+      - cognitoUserPool:
+          pool: MyUserPool
+          trigger: PostConfirmation
+          existing: true
+
+  get_invites:
+    handler: build/invites.getInvites
+    package:
+      include: 'build/invites.js'
+    events:
+      - http:
+          path: invite
+          method: get
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+                
+  accept_invite:
+    handler: build/invites.postAccept
+    package:
+      include: 'build/invites.js'
+    events:
+      - http:
+          path: invite/accept
+          method: post
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+                
+  decline_invite:
+    handler: build/invites.postDecline
+    package:
+      include: 'build/invites.js'
+    events:
+      - http:
+          path: invite/decline
+          method: post
+          cors: true
+          authorizer:
+              name: PrivateAuthorizer
+              type: COGNITO_USER_POOLS
+              arn:
+                Fn::GetAtt:
+                  - UserPool
+                  - Arn
+              claims:
+                - sub
+                - email
+
 resources:
   Resources:
     FilesTable:
       Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
       Properties:
         TableName: Files
         AttributeDefinitions:
@@ -262,6 +337,7 @@ resources:
           
     AlbumsTable:
       Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
       Properties:
         TableName: Albums
         AttributeDefinitions:
@@ -276,6 +352,7 @@ resources:
     
     FamilyInvitesTable:
       Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
       Properties:
         TableName: FamilyInvites
         AttributeDefinitions:
@@ -294,11 +371,13 @@ resources:
 
     UserUploadBucket:
       Type: AWS::S3::Bucket
+      DeletionPolicy: Retain
       Properties:
         BucketName: tim18-cloud-computing-user-upload
 
     UserPool:
       Type: AWS::Cognito::UserPool
+      DeletionPolicy: Retain
       Properties:
         UserPoolName: MyUserPool
         Policies:
@@ -342,6 +421,7 @@ resources:
 
     UserPoolClient:
       Type: 'AWS::Cognito::UserPoolClient'
+      DeletionPolicy: Retain
       Properties:
         ClientName: MyUserPoolClient
         GenerateSecret: False
